@@ -108,109 +108,180 @@ objective_reduced <- function(X, Y, ZETA, DELTAS, i1, i2) {
 }
 
 # 200 points
-N = 200
+N = 20
 
 # Linear decision boundary
-B_P = c(0.5, 0.5)
+B_P = c(0.0, 0.0)
 B_D = c(1.0, 1.0)
 
 # Generate data
 data = create_data(N, B_P, B_D)
 
 # Unpack & display data
-X = data[,1:2]
-Y = data[,3]
+X = cbind(as.numeric(data[,1]), as.numeric(data[,2]))
+Y = as.numeric(data[,3])
 cols = data[,4]
 plot(X, col=cols)
 
 
-# Solve the SVM
-tolerance = 0.01
-C = 1
-iter = 1
-DELTAS = runif(N) * C
-
-while(1)
-{
-    val = objective_function(X, Y, DELTAS)
-
-    DELTAS_NEW = rep(0, N)
-    for(half in 0:(N/2 - 1))
+optimise_simple <- function(C) {
+    DELTAS = runif(N) * C
+    epsilon = 0.0001
+    diff = 0.05
+    
+    while(1)
     {
-        i1 = half * 2 + 1
-        i2 = i1 + 1
+        val = objective_function(X, Y, DELTAS)
+        cat(val, " (", Y %*% DELTAS, ")\n")
 
-        ZETA = 0.0
         for(i in 1:N)
         {
-            if(i == i1 || i == i2)
-                next
-            ZETA = ZETA - DELTAS[i] * Y[i]
+            DELTAS_TENTATIVE = DELTAS
+            DELTAS_TENTATIVE[i] = DELTAS[i] + diff
+            if(objective_function(X, Y, DELTAS_TENTATIVE) <= val)
+                DELTAS_TENTATIVE[i] = DELTAS[i] - diff
+
+            DELTAS = DELTAS_TENTATIVE
+            DELTAS[i] = min(max(DELTAS[i], 0.0), C)
         }
 
-        tmp = objective_reduced(X, Y, ZETA, DELTAS, i1, i2)
-        a = tmp[1]
-        b = tmp[2]
-
-        d2 = -1.0 * b / (2.0 * a)
-        d2 = max(d2, 0.0)
-        d2 = min(d2, C)
-
-        d1 = Y[i1]*(ZETA - d2*Y[i2])
-
-        d1 = max(d1, 0.0)
-        d1 = min(d1, C)
-
-        DELTAS[i1] = d1
-        DELTAS[i2] = d2
+        val_new = objective_function(X, Y, DELTAS)
+        if(abs(val - val_new) < epsilon)
+            break
     }
+
+    return(DELTAS)
 }
+
+optimise_simple_with_constraints <- function(C) {
+    DELTAS = runif(N) * C
+    epsilon = 0.0001
+    diff = 0.05
+
+    while(1)
+    {
+        val = objective_function(X, Y, DELTAS)
+
+        for(half in 0:(N/2 - 1))
+        {
+            i1 = half * 2 + 1
+            i2 = i1 + 1
+
+            ZETA = 0.0
+            for(i in 1:N)
+            {
+                if(i == i1 || i == i2)
+                    next
+                ZETA = ZETA - DELTAS[i] * Y[i]
+            }
+
+            diff1 = runif(1) * diff
+            DELTAS_TENTATIVE = DELTAS
+            DELTAS_TENTATIVE[i1] = DELTAS[i1] + diff1
+            DELTAS_TENTATIVE[i1] = max(min(DELTAS_TENTATIVE[i1], C), 0.0)
+            if(objective_function(X, Y, DELTAS_TENTATIVE) < val)
+            {
+                DELTAS_TENTATIVE[i1] = DELTAS[i1] - diff1
+                DELTAS_TENTATIVE[i1] = max(min(DELTAS_TENTATIVE[i1], C), 0.0)
+            }
+            
+            DELTAS_TENTATIVE[i2] = Y[i2]*(ZETA - DELTAS_TENTATIVE[i1]*Y[i1])
+            if(objective_function(X, Y, DELTAS_TENTATIVE) > val)
+                DELTAS = DELTAS_TENTATIVE
+        }
+
+        val_new = objective_function(X, Y, DELTAS)
+        if(abs(val - val_new) < epsilon)
+            break
+    }
+
+    return(DELTAS)
+}
+
+
+optimise_SOM <- function(C) {
+    DELTAS = runif(N) * C
+    epsilon = 0.0001
+    diff = 0.05
+    indices = sample(1:N)
+
+    while(1)
+    {
+        for(a in 1:N)
+        {
+            i = indices[a]
+
+            diff1 = 2.0 * diff * (runif(1) - 0.5)
+
+            DELTAS_TENTATIVE = DELTAS
+            DELTAS_TENTATIVE[i] = DELTAS_TENTATIVE[i] + diff1
+            if(objective_function(X, Y, DELTAS_TENTATIVE) > val)
+            {
+                DELTAS = DELTAS_TENTATIVE
+            }
+            else
+            {
+                DELTAS_TENTATIVE[i] = DELTAS[i] - diff1
+                if(objective_function(X, Y, DELTAS_TENTATIVE) > val)
+                {
+                    DELTAS = DELTAS_TENTATIVE
+                }
+            }
+
+            DELTAS[i] = max(min(DELTAS[i], C), 0.0)
+        }
+    
+        val_new = objective_function(X, Y, DELTAS)
+        if(abs(val - val_new) < epsilon)
+            break
+    }
+
+    return(DELTAS)
+}
+
+# Solve the SVM
+DELTAS = optimise_simple(C)
 
 # Display the data again, with support vectors highlighted
 # in blue.
+cols2 = cols
 for(i in 1:N)
 {
     if(DELTAS[i] != 0.0)
     {
-        cols[i] = "blue"
+        cols2[i] = "blue"
     }
 }
-plot(c(set_A[,1], set_B[,1]), c(set_A[,2],set_B[,2]), col=cols)
+plot(X, col=cols2)
+
 
 # Compute the decision boundary vector from the support vector values
 B = c(0, 0)
 for(i in 1:N)
 {
-    if(DELTAS[i] > 0.0)
+    if(DELTAS[i] != 0.0)
     {
         B = B + DELTAS[i] * X[i,] * Y[i]
     }
 }
-B = B / as.numeric(sqrt(B%*%B))
 
-# Compute the constant term of the decision boundary
-tmp = c(0)
 for(i in 1:N)
 {
-    if(DELTAS[i] > 0.0)
+    if(DELTAS[i] == 0)
+        next
+
+    ri = C - DELTAS[i]
+    if(ri != 0.0)
     {
-        r = C - DELTAS[i]
-        if(r != 0)
-        {
-            B0 = Y[i] - as.numeric(B %*% X[i,])
-            tmp = append(tmp, B0)
-        }
+        B0 <<- Y[i] - as.numeric(B %*% X[i,])
+        break
     }
 }
-B0 = mean(tmp)
 
-# Add the decision boundary to the plot.
-grad = c(B[2], -1.0 * B[1])
-m = grad[2] / grad[1]
-
-fx <- function(x)
-{
-    B0 + m * x
+decision_boundary_function <- function(x) {
+    # Decision boundary line as ax x/y function
+    (-B0 - B[1]*x) / B[2]
 }
 
-curve(fx, add=TRUE)
+# Plot the decision boundary
+curve(decision_boundary_function, add=TRUE)
