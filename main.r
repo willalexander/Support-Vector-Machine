@@ -107,8 +107,8 @@ objective_reduced <- function(X, Y, ZETA, DELTAS, i1, i2) {
     c(a, b)
 }
 
-# 200 points
-N = 20
+# 40 points
+N = 40
 
 # Linear decision boundary
 B_P = c(0.0, 0.0)
@@ -156,23 +156,24 @@ optimise_simple <- function(C) {
 optimise_simple_with_constraints <- function(C) {
     DELTAS = runif(N) * C
     epsilon = 0.0001
-    diff = 0.05
+    diff = 0.01 * C
 
     while(1)
     {
         val = objective_function(X, Y, DELTAS)
-
-        for(half in 0:(N/2 - 1))
+        cat(val, " (", Y %*% DELTAS, ")\n")
+        
+        for(i in 1:N)
         {
-            i1 = half * 2 + 1
-            i2 = i1 + 1
+            i1 = as.integer(runif(1) * N) + 1
+            i2 = as.integer(runif(1) * N) + 1
 
             ZETA = 0.0
-            for(i in 1:N)
+            for(j in 1:N)
             {
-                if(i == i1 || i == i2)
+                if(j == i1 || j == i2)
                     next
-                ZETA = ZETA - DELTAS[i] * Y[i]
+                ZETA = ZETA - DELTAS[j] * Y[j]
             }
 
             diff1 = runif(1) * diff
@@ -186,6 +187,7 @@ optimise_simple_with_constraints <- function(C) {
             }
             
             DELTAS_TENTATIVE[i2] = Y[i2]*(ZETA - DELTAS_TENTATIVE[i1]*Y[i1])
+            DELTAS_TENTATIVE[i2] = max(min(DELTAS_TENTATIVE[i2], C), 0.0)
             if(objective_function(X, Y, DELTAS_TENTATIVE) > val)
                 DELTAS = DELTAS_TENTATIVE
         }
@@ -248,9 +250,7 @@ cols2 = cols
 for(i in 1:N)
 {
     if(DELTAS[i] != 0.0)
-    {
         cols2[i] = "blue"
-    }
 }
 plot(X, col=cols2)
 
@@ -260,9 +260,7 @@ B = c(0, 0)
 for(i in 1:N)
 {
     if(DELTAS[i] != 0.0)
-    {
         B = B + DELTAS[i] * X[i,] * Y[i]
-    }
 }
 
 for(i in 1:N)
@@ -279,7 +277,7 @@ for(i in 1:N)
 }
 
 decision_boundary_function <- function(x) {
-    # Decision boundary line as ax x/y function
+    # Decision boundary line as an x/y function
     (-B0 - B[1]*x) / B[2]
 }
 
