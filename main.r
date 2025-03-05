@@ -74,6 +74,7 @@ objective_reduced <- function(X, Y, ZETA, DELTAS, i1, i2) {
     d1_quad = 0.0
     d2_quad = 0.0
     cross_quad = 0.0
+    const = 0.0
 
     for(i in 1:N)
     {
@@ -98,21 +99,31 @@ objective_reduced <- function(X, Y, ZETA, DELTAS, i1, i2) {
             if((i == i2)||(k == i2))
                 d2_lin = d2_lin - 0.5 * (Y[i] * Y[k] * as.numeric(X[i,] %*% X[k,]))
                 next
+
+            const = const - 0.5 * (DELTAS[i] * DELTAS[k] * Y[i] * Y[k] * as.numeric(X[i,] %*% X[k,]))
         }
+    }
+
+    c = const
+    for(i in 1:N)
+    {
+        if((i == i1)||(i == i2))
+            next
+        c = c + DELTAS[i]
     }
 
     b = d2_lin - Y[i1] * Y[i2] * d1_lin - d1_quad * Y[i1]^2 * 2 * ZETA * Y[i2] + cross_quad * Y[i1] * ZETA + 1 - Y[i1]*Y[i2]
     a = d2_quad + d1_quad * Y[i1]^2 * Y[i2]^2 - cross_quad * Y[i1] * Y[i2]
 
-    c(a, b)
+    c(a, b, c)
 }
 
 # 40 points
-N = 40
+N = 20
 
 # Linear decision boundary
-B_P = c(0.0, 0.0)
-B_D = c(1.0, 1.0)
+B_P = c(1.0, 0.0)
+B_D = c(-1.0, 1.0)
 
 # Generate data
 data = create_data(N, B_P, B_D)
@@ -125,29 +136,41 @@ plot(X, col=cols)
 
 
 optimise_simple <- function(C) {
-    DELTAS = runif(N) * C
+    DELTAS = rep(0, N)
+    #runif(N) * C
     epsilon = 0.0001
-    diff = 0.05
+    diff = 0.01 * C
     
     while(1)
     {
         val = objective_function(X, Y, DELTAS)
-        cat(val, " (", Y %*% DELTAS, ")\n")
+        cat("\n", val, " (", Y %*% DELTAS, ")\n")
 
         for(i in 1:N)
         {
+            i1 = as.integer(runif(1) * N)
+            i2 = as.integer(runif(1) * N)
+
+            diff1 = (runif(1) - 0.5) * diff
+
             DELTAS_TENTATIVE = DELTAS
-            DELTAS_TENTATIVE[i] = DELTAS[i] + diff
+            DELTAS_TENTATIVE[i1] = DELTAS[i1] - diff1
             if(objective_function(X, Y, DELTAS_TENTATIVE) <= val)
-                DELTAS_TENTATIVE[i] = DELTAS[i] - diff
+                DELTAS_TENTATIVE[i1] = DELTAS[i1] + diff1
+            if(objective_function(X, Y, DELTAS_TENTATIVE) <= val)
+                next
+
+            DELTAS_TENTATIVE[i1] = min(max(DELTAS_TENTATIVE[i1], 0.0), C)
+
+            constraint_sum = as.numeric(DELTAS_TENTATIVE %*% Y)
+
+            DELTAS_TENTATIVE[i2] = DELTAS_TENTATIVE[i2] - Y[i2] * constraint_sum
 
             DELTAS = DELTAS_TENTATIVE
-            DELTAS[i] = min(max(DELTAS[i], 0.0), C)
         }
 
         val_new = objective_function(X, Y, DELTAS)
-        if(abs(val - val_new) < epsilon)
-            break
+        print(val_new)
     }
 
     return(DELTAS)
@@ -205,34 +228,40 @@ optimise_SOM <- function(C) {
     DELTAS = runif(N) * C
     epsilon = 0.0001
     diff = 0.05
-    indices = sample(1:N)
 
     while(1)
     {
-        for(a in 1:N)
+        val = objective_function(X, Y, DELTAS)
+        cat(val, " (", Y %*% DELTAS, ")\n")
+
+        indices = sample(1:N)
+
+        for(half in 0:(N/2 - 1))
         {
-            i = indices[a]
+            i1 = indices[half * 2 + 1]
+            i2 = indices[half * 2 + 2]
 
-            diff1 = 2.0 * diff * (runif(1) - 0.5)
+            ZETA = DELTAS[i1] * Y[i1] + DELTAS[i2] * Y[i2]
 
-            DELTAS_TENTATIVE = DELTAS
-            DELTAS_TENTATIVE[i] = DELTAS_TENTATIVE[i] + diff1
-            if(objective_function(X, Y, DELTAS_TENTATIVE) > val)
-            {
-                DELTAS = DELTAS_TENTATIVE
-            }
-            else
-            {
-                DELTAS_TENTATIVE[i] = DELTAS[i] - diff1
-                if(objective_function(X, Y, DELTAS_TENTATIVE) > val)
-                {
-                    DELTAS = DELTAS_TENTATIVE
-                }
-            }
+            tmp = objective_reduced(X, Y, ZETA, DELTAS, i1, i2)
+            a = tmp[1]
+            b = tmp[2]  
+            c = tmp[3]                          
 
-            DELTAS[i] = max(min(DELTAS[i], C), 0.0)
+            inner = b^2 - 4 * a * c
+            if(inner < 0)
+                next
+
+            d2 = (-1.0 * b + sqrt(inner) ) / (2.0 * a)
+            d2 = max(d2, 0.0)
+            d2 = min(d2, C)
+
+            d1 = Y[i1]*(ZETA - d2*Y[i2])
+
+            DELTAS[i1] = d1
+            DELTAS[i2] = d2
         }
-    
+
         val_new = objective_function(X, Y, DELTAS)
         if(abs(val - val_new) < epsilon)
             break
