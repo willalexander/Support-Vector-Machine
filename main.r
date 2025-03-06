@@ -119,7 +119,7 @@ objective_reduced <- function(X, Y, ZETA, DELTAS, i1, i2) {
 }
 
 # 40 points
-N = 20
+N = 100
 
 # Linear decision boundary
 B_P = c(1.0, 0.0)
@@ -225,9 +225,11 @@ optimise_simple_with_constraints <- function(C) {
 
 
 optimise_SOM <- function(C) {
-    DELTAS = runif(N) * C
+    DELTAS = rep(C, N)
     epsilon = 0.0001
     diff = 0.05
+
+    iter = 0
 
     while(1)
     {
@@ -252,18 +254,39 @@ optimise_SOM <- function(C) {
             if(inner < 0)
                 next
 
+            OLD1 = DELTAS[i1]
+            OLD2 = DELTAS[i2]
+
             d2 = (-1.0 * b + sqrt(inner) ) / (2.0 * a)
             d2 = max(d2, 0.0)
             d2 = min(d2, C)
-
             d1 = Y[i1]*(ZETA - d2*Y[i2])
-
             DELTAS[i1] = d1
             DELTAS[i2] = d2
+            val_new = objective_function(X, Y, DELTAS)
+            if(val_new > val)
+                next
+
+            d2 = (-1.0 * b - sqrt(inner) ) / (2.0 * a)
+            d2 = max(d2, 0.0)
+            d2 = min(d2, C)
+            d1 = Y[i1]*(ZETA - d2*Y[i2])
+            DELTAS[i1] = d1
+            DELTAS[i2] = d2
+            val_new = objective_function(X, Y, DELTAS)
+            if(val_new > val)
+                next
+
+            DELTAS[i1] = OLD1
+            DELTAS[i2] = OLD2
         }
 
         val_new = objective_function(X, Y, DELTAS)
         if(abs(val - val_new) < epsilon)
+            break
+
+        iter = iter + 1
+        if(iter == 100)
             break
     }
 
