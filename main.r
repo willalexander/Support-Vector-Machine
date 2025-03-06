@@ -119,7 +119,7 @@ objective_reduced <- function(X, Y, ZETA, DELTAS, i1, i2) {
 }
 
 # 40 points
-N = 100
+N = 50
 
 # Linear decision boundary
 B_P = c(1.0, 0.0)
@@ -259,35 +259,47 @@ optimise_SOM <- function(C) {
 
             d2 = (-1.0 * b + sqrt(inner) ) / (2.0 * a)
             d2 = max(d2, 0.0)
-            d2 = min(d2, C)
-            d1 = Y[i1]*(ZETA - d2*Y[i2])
-            DELTAS[i1] = d1
-            DELTAS[i2] = d2
-            val_new = objective_function(X, Y, DELTAS)
-            if(val_new > val)
-                next
+            sol_01_d2 = min(d2, C)
+            sol_01_d1 = Y[i1]*(ZETA - d2*Y[i2])
+            DELTAS[i1] = sol_01_d1
+            DELTAS[i2] = sol_01_d2
+            val_new_01 = objective_function(X, Y, DELTAS)
 
             d2 = (-1.0 * b - sqrt(inner) ) / (2.0 * a)
             d2 = max(d2, 0.0)
-            d2 = min(d2, C)
-            d1 = Y[i1]*(ZETA - d2*Y[i2])
-            DELTAS[i1] = d1
-            DELTAS[i2] = d2
-            val_new = objective_function(X, Y, DELTAS)
-            if(val_new > val)
-                next
+            sol_02_d2 = min(d2, C)
+            sol_02_d1 = Y[i1]*(ZETA - d2*Y[i2])
+            DELTAS[i1] = sol_02_d1
+            DELTAS[i2] = sol_02_d2
+            val_new_02 = objective_function(X, Y, DELTAS)
 
-            DELTAS[i1] = OLD1
-            DELTAS[i2] = OLD2
+            if(max(val_new_01, val_new_02) > val)
+            {
+                if(val_new_01 > val_new_02)
+                {
+                    DELTAS[i1] = sol_01_d1
+                    DELTAS[i2] = sol_01_d2
+                }
+                else
+                {
+                    DELTAS[i1] = sol_02_d1
+                    DELTAS[i2] = sol_02_d2
+                }
+            }
+            else
+            {
+                DELTAS[i1] = OLD1
+                DELTAS[i2] = OLD2
+            }
         }
 
         val_new = objective_function(X, Y, DELTAS)
         if(abs(val - val_new) < epsilon)
             break
 
-        iter = iter + 1
-        if(iter == 100)
-            break
+        #iter = iter + 1
+        #if(iter == 100)
+        #   break
     }
 
     return(DELTAS)
