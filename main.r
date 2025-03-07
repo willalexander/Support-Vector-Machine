@@ -224,8 +224,65 @@ optimise_simple_with_constraints <- function(C) {
 }
 
 
+force_constraints <- function(d1, ZETA, y1, y2, C)
+{
+    intersections = matrix(nrow=4, ncol=2, c(0, 0, 0, 0, 0, 0, 0, 0))
+    indices = c()
+
+    # left
+    tmp = y2 * ZETA
+    if((tmp >= 0.0)&&(tmp <= C))
+    {
+        intersections[1,] = c(0.0, tmp)
+        indices = append(indices, 1)
+    }
+
+    # right
+    tmp = y2 * ZETA - C * y1 * y2
+    if((tmp >= 0.0)&&(tmp <= C))
+    {
+        intersections[2,] = c(C, tmp)
+        indices = append(indices, 2)
+    }
+
+    # bottom
+    y1_ = y1
+    if(y1_ == 0)
+        y1 = 0.00001
+    tmp = ZETA / y1_
+    if((tmp >= 0.0)&&(tmp <= C))
+    {
+        intersections[3,] = c(tmp, 0.0)
+        indices = append(indices, 3)
+    }
+
+    # top
+    y1y2_ = y1 * y2
+    if(y1y2_ == 0)
+        y1y2_ = 0.00001
+    tmp = (y2* ZETA - C) / y1y2_
+    {
+    if((tmp >= 0.0)&&(tmp <= C))
+        intersections[4,] = c(tmp, C)
+        indices = append(indices, 4)
+    }
+
+    if(length(indices) == 0)
+        return(NULL)
+
+    else
+    {
+        dist1 = abs(intersections[indices[1],][1] - d1)
+        dist2 = abs(intersections[indices[2],][1] - d1)
+        if(dist1 < dist2)
+            return(intersections[indices[1],])
+        return(intersections[indices[2],])
+    }
+}
+
+
 optimise_SOM <- function(C) {
-    DELTAS = rep(C, N)
+    DELTAS = rep(0, N)
     epsilon = 0.0001
     diff = 0.05
 
@@ -257,6 +314,7 @@ optimise_SOM <- function(C) {
             OLD1 = DELTAS[i1]
             OLD2 = DELTAS[i2]
 
+            "
             d2 = (-1.0 * b + sqrt(inner) ) / (2.0 * a)
             d2 = max(d2, 0.0)
             sol_01_d2 = min(d2, C)
@@ -287,6 +345,21 @@ optimise_SOM <- function(C) {
                 }
             }
             else
+            {
+                DELTAS[i1] = OLD1
+                DELTAS[i2] = OLD2
+            }
+            "
+            d2 = (-1.0 * b + sqrt(inner) ) / (2.0 * a)
+            cat("\n", d2, "\n")
+            tmp = force_constraints(d2, ZETA, Y[i2], Y[i1], C)
+            print(tmp)
+            if(is.null(tmp))
+                next
+            DELTAS[i1] = tmp[2]
+            DELTAS[i2] = tmp[1]
+            val_new = objective_function(X, Y, DELTAS)
+            if(val_new <= val)
             {
                 DELTAS[i1] = OLD1
                 DELTAS[i2] = OLD2
