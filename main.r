@@ -280,6 +280,76 @@ force_constraints <- function(d1, ZETA, y1, y2, C)
     }
 }
 
+soft_constrain <- function(DELTAS, i1, i2, a, b, c, ZETA, C, val)
+{
+    OLD1 = DELTAS[i1]
+    OLD2 = DELTAS[i2]
+
+    inner = b^2 - 4 * a * c
+    if(inner < 0)
+        return(DELTAS)
+
+    d2 = (-1.0 * b + sqrt(inner) ) / (2.0 * a)
+    d2 = max(d2, 0.0)
+    sol_01_d2 = min(d2, C)
+    sol_01_d1 = Y[i1]*(ZETA - d2*Y[i2])
+    DELTAS[i1] = sol_01_d1
+    DELTAS[i2] = sol_01_d2
+    val_new_01 = objective_function(X, Y, DELTAS)
+
+    d2 = (-1.0 * b - sqrt(inner) ) / (2.0 * a)
+    d2 = max(d2, 0.0)
+    sol_02_d2 = min(d2, C)
+    sol_02_d1 = Y[i1]*(ZETA - d2*Y[i2])
+    DELTAS[i1] = sol_02_d1
+    DELTAS[i2] = sol_02_d2
+    val_new_02 = objective_function(X, Y, DELTAS)
+
+    if(max(val_new_01, val_new_02) > val)
+    {
+        if(val_new_01 > val_new_02)
+        {
+            DELTAS[i1] = sol_01_d1
+            DELTAS[i2] = sol_01_d2
+        }
+        else
+        {
+            DELTAS[i1] = sol_02_d1
+            DELTAS[i2] = sol_02_d2
+        }
+    }
+    else
+    {
+        DELTAS[i1] = OLD1
+        DELTAS[i2] = OLD2
+    }
+    return(DELTAS)
+}
+
+
+hard_constrain <- function(DELTAS, i1, i2, a, b, c, ZETA, C, val)
+{
+    OLD1 = DELTAS[i1]
+    OLD2 = DELTAS[i2]
+
+    inner = b^2 - 4 * a * c
+    if(inner < 0)
+        return(DELTAS)
+    d2 = (-1.0 * b + sqrt(inner) ) / (2.0 * a)
+    tmp = force_constraints(d2, ZETA, Y[i2], Y[i1], C)
+    if(is.null(tmp))
+        next
+    DELTAS[i1] = tmp[2]
+    DELTAS[i2] = tmp[1]
+    val_new = objective_function(X, Y, DELTAS)
+    if(val_new <= val)
+    {
+        DELTAS[i1] = OLD1
+        DELTAS[i2] = OLD2
+    }
+    return(DELTAS)
+}     
+
 
 optimise_SOM <- function(C) {
     DELTAS = rep(0, N)
@@ -303,67 +373,7 @@ optimise_SOM <- function(C) {
             ZETA = DELTAS[i1] * Y[i1] + DELTAS[i2] * Y[i2]
 
             tmp = objective_reduced(X, Y, ZETA, DELTAS, i1, i2)
-            a = tmp[1]
-            b = tmp[2]  
-            c = tmp[3]                          
-
-            inner = b^2 - 4 * a * c
-            if(inner < 0)
-                next
-
-            OLD1 = DELTAS[i1]
-            OLD2 = DELTAS[i2]
-
-            "
-            d2 = (-1.0 * b + sqrt(inner) ) / (2.0 * a)
-            d2 = max(d2, 0.0)
-            sol_01_d2 = min(d2, C)
-            sol_01_d1 = Y[i1]*(ZETA - d2*Y[i2])
-            DELTAS[i1] = sol_01_d1
-            DELTAS[i2] = sol_01_d2
-            val_new_01 = objective_function(X, Y, DELTAS)
-
-            d2 = (-1.0 * b - sqrt(inner) ) / (2.0 * a)
-            d2 = max(d2, 0.0)
-            sol_02_d2 = min(d2, C)
-            sol_02_d1 = Y[i1]*(ZETA - d2*Y[i2])
-            DELTAS[i1] = sol_02_d1
-            DELTAS[i2] = sol_02_d2
-            val_new_02 = objective_function(X, Y, DELTAS)
-
-            if(max(val_new_01, val_new_02) > val)
-            {
-                if(val_new_01 > val_new_02)
-                {
-                    DELTAS[i1] = sol_01_d1
-                    DELTAS[i2] = sol_01_d2
-                }
-                else
-                {
-                    DELTAS[i1] = sol_02_d1
-                    DELTAS[i2] = sol_02_d2
-                }
-            }
-            else
-            {
-                DELTAS[i1] = OLD1
-                DELTAS[i2] = OLD2
-            }
-            "
-            d2 = (-1.0 * b + sqrt(inner) ) / (2.0 * a)
-            cat("\n", d2, "\n")
-            tmp = force_constraints(d2, ZETA, Y[i2], Y[i1], C)
-            print(tmp)
-            if(is.null(tmp))
-                next
-            DELTAS[i1] = tmp[2]
-            DELTAS[i2] = tmp[1]
-            val_new = objective_function(X, Y, DELTAS)
-            if(val_new <= val)
-            {
-                DELTAS[i1] = OLD1
-                DELTAS[i2] = OLD2
-            }
+            DELTAS = soft_constrain(DELTAS, i1, i2, tmp[1], tmp[2], tmp[3], ZETA, C, val)
         }
 
         val_new = objective_function(X, Y, DELTAS)
